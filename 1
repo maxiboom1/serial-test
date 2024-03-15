@@ -1,0 +1,77 @@
+const { SerialPort } = require('serialport');
+const { ReadlineParser } = require('@serialport/parser-readline');
+
+class SerialService {
+    
+    constructor(path) {
+        this.isConnected = false;
+        this.port = null;
+        this.parser = null;
+        this.heartbeatInterval = null;
+        this.path = path;
+    }
+
+    connect(path) {
+        try {
+            this.port = new SerialPort({ path: this.path, baudRate: 9600 });
+            
+            this.port.on('error', function(err) {
+                console.error('Serial connection failed:', err.message);
+            });
+            
+            this.parser = this.port.pipe(new ReadlineParser());
+            
+            this.parser.on('data', (data) => {
+                if (data.trim() === "ack") {
+                    this.isConnected = true;
+                    console.log('Device connected.');
+                }
+            });
+            
+            //this.startHeartbeat();
+        } catch (e) {
+            console.error("Serial communication failed: ", e);
+        }
+    }
+
+    startHeartbeat() {
+        this.heartbeatInterval = setInterval(() => {
+            this.sendHeartBeat();
+        }, 5000); // Send heartbeat every 5 seconds
+    }
+
+    sendHeartBeat() {
+        if (this.port && this.port.isOpen) {
+            this.port.write("heartbeat\n", (err) => {
+                if (err) {
+                    console.log('Error on write: ', err.message);
+                } else {
+                    console.log('Heartbeat signal sent');
+                }
+            });
+        }
+    }
+
+    closeConnection() {
+        if (this.heartbeatInterval) {clearInterval(this.heartbeatInterval);}
+        
+        if (this.port) {
+            this.port.close((err) => {
+                if (err) {
+                    console.error("Failed to close port: ", err.message);
+                } else {
+                    console.log("Port closed successfully.");
+                    this.isConnected = false;
+                }
+            });
+        } else {
+            this.port = null;
+        }
+    }
+
+}
+
+
+// Usage example
+const serialService = new SerialService("COM3");
+serialService.connect('COM3');  
